@@ -10,6 +10,7 @@ from typing import Tuple, Optional, List, Any
 import hashlib
 
 import requests
+import time
 import shutil
 import urllib.request as request
 from contextlib import closing
@@ -121,7 +122,8 @@ def query_pubchem(ids: list,
                   query_type: str = "inchi",
                   save_file: str = "pubchem_save.txt",
                   rm_save: bool = True, 
-                  encoding : str ="utf8") -> dict:
+                  encoding : str ="utf8",
+                  return_single : bool = False) -> dict:
     """query_pubchem.
 
     Args:
@@ -130,6 +132,7 @@ def query_pubchem(ids: list,
         save_file (str):
         rm_save (bool): If true, delete the file saved afterward
         encoding (str): Encoding to send request, defaults to utf-8
+        return_single (bool): If true, only return the top hit for smiles
 
     Return:
         dict mapping ids to smiles lists
@@ -278,6 +281,10 @@ def query_pubchem(ids: list,
                 ret_dict[mol].append(smiles)
             else:
                 logging.debug(f"No smiles mol found for {line}")
+
+    # If we should only return a single item and not a list
+    if return_single: 
+        ret_dict = {k : v[0] for k,v in ret_dict.items() if len(v) > 0}
 
     # Remove temp file
     if os.path.exists(save_file) and rm_save:

@@ -1,6 +1,6 @@
 """ parse_brenda_main.py 
 
-Helper script to parse the brenda file
+    Helper script to parse the brenda file
 
     Typical usage example:
     
@@ -184,7 +184,7 @@ def add_compounds(enzymes_data: dict,
 
                 # Export these to a list of dicts that will be turned into a
                 # csv
-                for seq  in zip(ref_ids: 
+                for seq  in ref_ids: 
                     for compound in compound_smiles:
                         obj = {
                             "EC_NUM": ec_num,
@@ -313,7 +313,8 @@ def setup_logs(args : argparse.Namespace, out_prefix : str):
 
 
 def parse_ligands_file(brenda_ligands_out_file : str, 
-                       brenda_ligands_in_file : str, load_prev : bool) -> dict: 
+                       brenda_ligands_in_file : str, load_prev : bool, 
+                       debug : bool) -> dict: 
     """ parse_ligands_file. 
     
     Parse the Brenda Ligands file. If we're loading previous to save time, load
@@ -323,6 +324,7 @@ def parse_ligands_file(brenda_ligands_out_file : str,
         brenda_ligands_out_file (str): Name of outfile
         brenda_ligands_in_file (str): Name of ligands in file
         load_prev (bool) : If true, try to load from a prevoius parse
+        deubg (bool): If true debug
 
     Return:
         Brenda ligands dict mapping common name to chebi and inchi 
@@ -336,6 +338,12 @@ def parse_ligands_file(brenda_ligands_out_file : str,
         utils.dump_json(brenda_ligands,
                         brenda_ligands_out_file,
                         pretty_print=False)
+    if debug: 
+        import random
+        keys_to_use = random.sample(brenda_ligands.keys(), k = int(0.01 * len(brenda_ligands)))
+        new_dict = {i : brenda_ligands[i]  
+                    for i in keys_to_use}
+        
     return brenda_ligands
 
 def parse_flat_file(ec_stats_out_file: str, enzymes_data_out_file : str, 
@@ -608,7 +616,9 @@ def main():
 
     # Parse Brenda Ligands file
     brenda_ligands_file = f"{args.out_prefix}_brenda_ligands.json"
-    brenda_ligands = parse_ligands_file(brenda_ligands_file, args.brenda_ligands, args.load_prev)
+    brenda_ligands = parse_ligands_file(brenda_ligands_file,
+                                        args.brenda_ligands, args.load_prev,
+                                        args.debug)
 
     # Parse brenda ec classes and enzymes
     ec_stats_file = f"{args.out_prefix}_brenda_ec_stats.json"
@@ -658,6 +668,9 @@ def main():
     # Now resolve all compounds
     mapped_comps_file = f"{args.out_prefix}_compounds_to_smiles.json"
     unmapped_comps_file = f"{args.out_prefix}_compounds_unmapped.json"
+
+    # TODO: Fix this so that it doesn't return strings and lists, but only one
+    # of the two types 
     mapped_compounds, unmapped_compounds = map_compounds_to_smiles(compound_list, brenda_ligands, 
                                                                    mapped_inchi, mapped_chebi,
                                                                    mapped_comps_file, unmapped_comps_file,
@@ -683,9 +696,9 @@ def main():
     rxn_set, compound_set = pd.DataFrame(rxn_set), pd.DataFrame(compound_set)
 
     # Ouput finished mapping to file
-    enzymes_mapped_data_file = f"{args.out_prefix}_brenda_enzymes_data_complete_mapped.json"
-    rxn_final_tsv = f"{args.out_prefix}_brenda_rxn_final.tsv"
-    compounds_final_tsv = f"{args.out_prefix}_brenda_rxn_compounds.tsv"
+    enzymes_mapped_data_file = f"{args.out_prefix}_enzymes_data_complete_mapped.json"
+    rxn_final_tsv = f"{args.out_prefix}_rxn_final.tsv"
+    compounds_final_tsv = f"{args.out_prefix}_rxn_compounds.tsv"
     utils.dump_json(enzymes_data,
                     enzymes_mapped_data_file,
                     pretty_print=False)

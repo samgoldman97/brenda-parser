@@ -23,10 +23,10 @@ def get_rxn_compound_stats(rxn_set: pd.DataFrame,
     """
 
     stats_summary = dict()
-    seq_is_null = rxn_set["SEQ"].apply(lambda x: x == None or x == "" or x == "UNK")
+    seq_is_null = rxn_set["SEQ_ID"].apply(lambda x: x == None or x == "" or x == "UNK")
     seq_not_null = ~seq_is_null 
     stats_summary["Avg rxn per enzyme"] = np.mean(
-        rxn_set[seq_not_null].groupby("SEQ").apply(len))
+        rxn_set[seq_not_null].groupby("SEQ_ID").apply(len))
     stats_summary["Avg rxn per ec"] = np.mean(
         rxn_set.groupby("EC_NUM").apply(len))
     stats_summary["Total rxn,enzyme pairs with sequences"] = len(
@@ -34,8 +34,8 @@ def get_rxn_compound_stats(rxn_set: pd.DataFrame,
     stats_summary["Total rxn,enzyme pairs with no seqs"] = len(
         rxn_set[seq_is_null])
 
-    stats_summary["Total unique enzymes"] = len(set(rxn_set["SEQ"]) )
-    stats_summary["Avg enzymes per class"] =  np.mean(rxn_set.groupby("EC_NUM").apply(lambda x : len(set(x["SEQ"]))))
+    stats_summary["Total unique enzymes"] = len(set(rxn_set["SEQ_ID"]) )
+    stats_summary["Avg enzymes per class"] = np.mean(rxn_set.groupby("EC_NUM").apply(lambda x : len(set(x["SEQ_ID"]))))
 
     # Concatenate together with a space after substrates..
     full_rxn_string = (rxn_set["SUBSTRATES"].apply(lambda x: x.strip() + " ") +
@@ -158,7 +158,7 @@ def make_plots(rxn_df: pd.DataFrame, compounds : pd.DataFrame, out_prefix : str)
 
     # Length of genes
     fig = plt.figure()
-    gene_set = set([i for i in rxn_df["SEQ"] if type(i) is str and len(i) > 1] )
+    gene_set = set([i for i in rxn_df["SEQ_ID"] if type(i) is str and len(i) > 1] )
     gene_set_lens = [len(i) for i in gene_set]
     sns.distplot(gene_set_lens, rug=True)
     plt.xlabel(f"Gene lengths (# Amino Acids)")
@@ -178,7 +178,7 @@ def make_plots(rxn_df: pd.DataFrame, compounds : pd.DataFrame, out_prefix : str)
 
     # Unique genes per EC 
     fig = plt.figure()
-    ax = plot_unique_elements(rxn_df, mol_col="SEQ",
+    ax = plot_unique_elements(rxn_df, mol_col="SEQ_ID",
                               groupby_col="EC_NUM", split_stack_group=False)
     ax.set_xlabel(f"Number of unique genes per EC number") 
     ax.set_ylabel(f"Counts")

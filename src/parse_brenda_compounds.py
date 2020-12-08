@@ -425,6 +425,18 @@ def get_smiles_from_mappings(mol: str, ligand_mapping: dict,
 
     return smiles
 
+def resolve_from_mappings(mol_list, ligand_mapping, inchi_mapping,
+                          chebi_mapping): 
+    """ Wrapper around get_smiles_from_mapping that accepts a list and returns
+    a dict"""
+    new_mapping = {}
+    for mol in mol_list: 
+        smiles = get_smiles_from_mappings(mol, ligand_mapping,
+                                          inchi_mapping, chebi_mapping)
+        if smiles:
+            new_mapping[mol] = smiles
+    return new_mapping
+
 
 def resolve_compound_list(mols: list,
                           ligand_mapping: dict,
@@ -439,6 +451,13 @@ def resolve_compound_list(mols: list,
 
     Attempt all substitution rules on the molecule list and try to pull them
     from the inchi mapping, chebi mapping, 
+
+    Order:
+    - Try resolving with dictionaries passed in as input
+    - Try resolving with pubchem
+    - Try resolving with Opsin
+    - Try resolving with cirpy (if use cirpy)
+    - Repeat this procedure for _all_ substitution rules 
 
     Args:
         mols (list): mols
@@ -458,102 +477,33 @@ def resolve_compound_list(mols: list,
     mapping = dict()
     mols_remaining = set(mols)
 
-    # USE INCHI/CHEBI
     subst_rules = get_substitution_rules()
 
-    logging.info(
-        f"\nTrying to map {len(mols_remaining)}. First using inchi/chebi")
-
-    tested_variants = set()
-    for subst_rule in subst_rules:
-        logging.info(f"""\nRemaining molecules: {len(mols_remaining)}. Trying
-            substitution rule \'{subst_rule.__name__}\'""")
-        tested_this_rule = 0
-        # Loop over all molecules remaining
-        # Apply this substitution rule
-        # If it doesn't add new diversity, don't test
-        mols_remaining_iter = list(mols_remaining)
-        for mol in mols_remaining_iter:
-            mol_var = subst_rule(mol)
-
-            # First, if we haven't tested it, get smiles mapping from whatw e
-            # have   
-            if mol_var not in tested_variants:
-                tested_variants.add(mol_var)
-                tested_this_rule += 1
-
-                smiles = get_smiles_from_mappings(mol_var, ligand_mapping,
-                                                  inchi_mapping, chebi_mapping)
-
-                if smiles:
-                    mapping[mol] = smiles
-                    mols_remaining.remove(mol)
-        logging.info(
-            f"""New variants generated with this rule: {tested_this_rule}.
-            {len(mols_remaining)} molecules remaining to identify""")
-
-    logging.info(f"""{len(mols_remaining)} mols remaining after inchi/chebi to 
-        smiles attribution\n\n""")
-
-    # Use pubchem
-    logging.info(f"Building large query set with all rules")
-    test_variants = set()  # Total set to be tested
-    mol_to_variants = defaultdict(lambda: [])  # Keep track of variants
-    for subst_rule in subst_rules:
-        for mol in mols_remaining:
-            new_mol = subst_rule(mol)
-            # Only add variant to mapping if new
-            if new_mol not in mol_to_variants[mol]:
-                mol_to_variants[mol].append(new_mol)
-            # add it to the set of all variants tested
-            test_variants.add(new_mol)
-
-    logging.info(f"{len(test_variants)} sent to pubchem via PUG!")
-
-    test_variants = list(test_variants)
-    mapping_syn = utils.query_pubchem(
-        test_variants,
-        query_type="synonym",
-        save_file=f"{save_prefix}_pubchem_query_comp_names.txt")
-
-    # Recover results from this query
-    num_mapped = 0
-    for mol in mol_to_variants:
-        # Get all variants tested for this molecule
-        # These should be ordered
-        mol_name_variants = mol_to_variants[mol]
-        for mol_variant in mol_name_variants:
-            if mol_variant in mapping_syn:
-                smiles_options = list(mapping_syn[mol_variant])
-                if len(smiles_options) > 1:
-                    logging.warning(
-                        f"Multiple smiles ({len(smiles_options)}) found for {mol}"
-                    )
-                smiles = smiles_options[0]
-                if smiles:
-                    mapping[mol] = smiles
-                    mols_remaining.remove(mol)
-                    num_mapped += 1
-                    # Break from the for loop if we found one
-                    break
-
-    logging.info(
-        f"""{len(mols_remaining)} mols remaining after Pubchem synonyms crawl.
-        {num_mapped} new smiles identified with pubchem syn search\n
-        """)
-
-    # Build other resolvers!
-    # TODO: Update the resolvers above (inchi/chebi mapping and pubchem) to use
-    # this format of calling
+    # Try a number of different resolvers
     resolver_fns = []
     resolver_kwargs = []
-    if use_cirpy:
-        resolver_fns.append(cirpy_cached)
-        resolver_kwargs.append({"cirpy_log": cirpy_log})
+
+    # Add previous dictionaries
+    # Resolvers should accept a list of molecules and return a map of molecules
+    # in the list to a smiles string
+    resolver_fns.append(resolve_from_mappings)
+    resolver_kwargs.append({"ligand_mapping": ligand_mapping, 
+                            "inchi_mapping" : inchi_mapping, 
+                            "chebi_mapping" : chebi_mapping})
+
+    # convert pubchem into a mapper
+    resolver_fns.append(utils.query_pubchem) 
+    resolver_kwargs.append({"query_type" : "synonym",
+                            "save_file" : f"{save_prefix}_pubchem_query_comp_names.txt", 
+                            "return_single" : True})
 
     if opsin_loc:
         resolver_fns.append(query_opsin)
         resolver_kwargs.append({"opsin_loc": opsin_loc})
+
+    if use_cirpy:
+        resolver_fns.append(cirpy_cached)
+        resolver_kwargs.append({"cirpy_log": cirpy_log})
 
     for resolver, kwargs in zip(resolver_fns, resolver_kwargs):
         resolver_name = resolver.__name__
@@ -568,7 +518,7 @@ def resolve_compound_list(mols: list,
                 substitution rule \'{subst_name}\'""")
             mols_to_test = set()
 
-            # Map the variant to its corresponding molecule
+            # Map the variant to its corresponding true molecule
             var_to_mol = defaultdict(lambda :  [])
 
             # Get all molecules with this subt rule
@@ -583,7 +533,7 @@ def resolve_compound_list(mols: list,
                 f"Mols being tried for {resolver_name} w/ this rule: {len(mols_to_test)}"
             )
 
-            # Test this set with cirpy
+            # Test this set with the resolver at hand
             resolver_mapping = resolver(list(mols_to_test), **kwargs)
 
             # Remap resolver mapping
@@ -599,7 +549,6 @@ def resolve_compound_list(mols: list,
                 {num_resolver_found} found with {resolver_name} so far""")
 
     return mapping, list(mols_remaining)
-
 
 ########## Standardization ##########
 
@@ -763,4 +712,5 @@ def standardize_mols(mapped_compounds : dict, standardizer_log : str = None,
     # Redo the mapping
     logging.info("Finished standardizing molecules")
     logging.info(f"Number failed: {num_failed}")
+
     return mapped_compounds 
