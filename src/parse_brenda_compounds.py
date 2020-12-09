@@ -16,6 +16,7 @@ import logging
 from rdkit import Chem
 import molvs
 from collections import defaultdict
+from tqdm import tqdm
 
 from src import utils
 
@@ -669,8 +670,8 @@ def standardize_mols(mapped_compounds : dict, standardizer_log : str = None,
     # sort to_standardize..
     to_standardize = sorted(to_standardize, key=len)
     chunk_groups = np.array_split(to_standardize, num_groups) 
+    pbar = tqdm(total=len(chunk_groups))
     for chunk_index, mol_chunk in enumerate(chunk_groups):
-
         if pool:  
             results = []
             # Start all sub jobs
@@ -693,6 +694,7 @@ def standardize_mols(mapped_compounds : dict, standardizer_log : str = None,
                                                     standardized_mapped,
                                                     standardizer) 
 
+        pbar.update()
         # Aggregate the results
         standardized_mapped.update(new_mapping)
 
@@ -706,6 +708,7 @@ def standardize_mols(mapped_compounds : dict, standardizer_log : str = None,
             logging.warning(f"Failed to map {failure}")
         logging.info(f"Mapped {len(new_mapping)} new compounds in chunk {chunk_index}")
 
+    pbar.close()
     if pool: pool.close()
     # Set equal!
     mapped_compounds = {k : standardized_mapped[v] for k,v in mapped_compounds.items() if v in standardized_mapped}

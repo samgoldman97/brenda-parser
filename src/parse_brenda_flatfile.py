@@ -16,6 +16,8 @@ import logging
 import time
 import numpy as np
 
+from tqdm import tqdm 
+
 # EC RE
 EC_RE = r"\d+.\d+.\d+.\d+"
 UNIPROT_RE = r"[OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9](?:[A-Z][A-Z0-9]{2}[0-9]){1,2}"
@@ -604,6 +606,12 @@ def read_brenda_file(in_file: str,
     ec_stats = dict()
 
     buff = ""
+
+    num_lines, line_count = 0, 0
+    with open(in_file, "r") as fp: 
+        for line in fp: num_lines += 1
+
+    pbar = tqdm(total=num_lines)
     with open(in_file, "r") as fp:
         new_line = fp.readline()
         while (new_line):
@@ -628,10 +636,12 @@ def read_brenda_file(in_file: str,
                     raise RuntimeError("Unexpected parse logic")
 
             new_line = fp.readline()
+            pbar.update()
 
             # For debugging
             if debug and len(ec_stats) > 2000:
                 break
+    pbar.close()
 
     return ec_stats, enzymes_data
 
@@ -670,7 +680,7 @@ def parse_brenda_ligand(brenda_ligand_file: str) -> dict:
     ret = {}
     if brenda_ligand_file: 
         with open(brenda_ligand_file, "rb") as fh:
-            for line in fh:
+            for line in tqdm(fh):
                 try:
                     name, _, _, _, inchi, chebi = line.strip().decode(
                         'utf-8').split('\t')

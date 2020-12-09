@@ -3,18 +3,18 @@
     Helper script to parse the brenda file
 
     Typical usage example:
+
+    Call to run: 
+
+    python parse_brenda.py --brenda-flat-file data/raw/brenda_download.txt --brenda-ligands data/raw/brenda_ligands.csv --out-prefix results/out --no-standardize --load-prev --opsin-loc external_tools/opsin.jar
+
+    Sample call while debugging:
     
     python -m pdb parse_brenda.py --brenda-flat-file data/raw/brenda_download_short.txt --debug --brenda-lig data/raw/brenda_ligands.csv --out-prefix results/brenda_parsed --no-standardize --load-prev
-
-    python enzpred/data/brenda/parse_brenda_main.py --brenda-flat-file data/raw/BRENDA/brenda_download.txt --out-prefix data/interim/BRENDA/parsed_brenda --fasta-seq-files data/raw/Uniprot/uniprot_sprot.fasta data/raw/Uniprot/uniprot_trembl.fasta --brenda-ligands data/raw/BRENDA/brenda_ligands.csv --cirpy-log data/interim/BRENDA/cirpy_log.txt --load-prev --opsin-loc enzpred/data/brenda/opsin.jar
-
-    Sample call avoiding re-downloading uniprot: 
-    
-    python -m pdb enzpred/data/brenda/parse_brenda_main.py --brenda-flat-file data/raw/BRENDA/brenda_download.txt --out-prefix data/interim/BRENDA/parsed_with_ligand/parsed_brenda  --brenda-ligands data/raw/BRENDA/brenda_ligands.csv --cirpy-log data/interim/BRENDA/cirpy_log.txt  --opsin-loc enzpred/data/brenda/opsin.jar  --load-prev --no-uniprot-download
-
 """
 
 import os
+import sys
 import re
 import argparse
 import typing
@@ -241,10 +241,6 @@ def get_args():
                          type=str,
                          help="Location for storing saved uniprot queries",
                          default="data/raw/Uniprot")
-    options.add_argument('--no-uniprot-download',
-                         action="store_true",
-                         default=False, 
-                         help="If true, don't redownload uniprot seqs."), 
     options.add_argument('--out-prefix',
                          action="store",
                          help="""BRENDA parsed output directory prefix; will
@@ -300,9 +296,12 @@ def setup_logs(args : argparse.Namespace, out_prefix : str):
     """
     # Set up logger
     level = logging.INFO if not args.debug else logging.DEBUG
-    logging.basicConfig(filename=f'{args.out_prefix}_{int(time.time())}.log',
-                        level=level,
-                        filemode="w")
+    logging.basicConfig(level=logging.INFO, 
+                        format='%(asctime)s %(levelname)s: %(message)s', 
+                        handlers=[logging.StreamHandler(sys.stdout), 
+                                  logging.FileHandler(f'{args.out_prefix}_{int(time.time())}.log')]
+
+                        )
 
     logging.info(f"Args: {str(args)}")
 
@@ -614,11 +613,14 @@ def main():
     args = get_args()
     setup_logs(args, args.out_prefix)
 
+
     # Parse Brenda Ligands file
+    logging.info("Starting to parse ligands")
     brenda_ligands_file = f"{args.out_prefix}_brenda_ligands.json"
     brenda_ligands = parse_ligands_file(brenda_ligands_file,
                                         args.brenda_ligands, args.load_prev,
                                         args.debug)
+    logging.info("Done parsing ligands")
 
     # Parse brenda ec classes and enzymes
     ec_stats_file = f"{args.out_prefix}_brenda_ec_stats.json"
@@ -627,22 +629,30 @@ def main():
     # Parse brenda flat file
     # Ec_stats contains enzyme class wide parameters
     # enzymes_data contains actual enzymes
+    logging.info("Starting to parse flat file")
     ec_stats, enzymes_data = parse_flat_file(ec_stats_file, 
                                              enzymes_data_file, 
+                                             args.brenda_flat_file,
                                              args.load_prev,
                                              args.out_prefix,
                                              args.debug)
+    logging.info("Done parsing flat file")
 
     # Get the list of compounds from enzymes data 
+    logging.info("Starting to extract compound list")
     compounds_list_file = f"{args.out_prefix}_compound_list.json"
     compound_list = get_compound_list(enzymes_data, compounds_list_file, 
                                       args.load_prev)
+    logging.info("Done extracting compound list")
 
+    logging.info("Starting to extract inchi/chebi")
     chebi_inchi_set_file = f"{args.out_prefix}_chebi_inchi_set.json"
     chebi_inchi_set = extract_unique_inchi_chebi(chebi_inchi_set_file, 
                                                  brenda_ligands,
                                                  args.load_prev)
+    logging.info("Done extracting inchi/chebi")
 
+    logging.info("Starting to map chebi to smiles")
     # Map brenda ligand chebi to smiles
     mapped_chebi_file = f"{args.out_prefix}_chebi_to_smiles.json"
     unmapped_chebi_file = f"{args.out_prefix}_chebi_unmapped.json"
@@ -653,7 +663,9 @@ def main():
                                                        args.out_prefix,
                                                        args.use_cirpy,
                                                        args.cirpy_log)
+    logging.info("Done mapping chebi to smiles")
 
+    logging.info("Starting to map inchi to smiles")
     # Map brenda ligand inchi to smiles
     mapped_inchi_file = f"{args.out_prefix}_inchi_to_smiles.json"
     unmapped_inchi_file = f"{args.out_prefix}_inchi_unmapped.json"
@@ -664,7 +676,9 @@ def main():
                                                        args.out_prefix,
                                                        args.use_cirpy,
                                                        args.cirpy_log)
+    logging.info("Done mapping inchi to smiles")
 
+    logging.info("Starting to resolve all compounds to smiles")
     # Now resolve all compounds
     mapped_comps_file = f"{args.out_prefix}_compounds_to_smiles.json"
     unmapped_comps_file = f"{args.out_prefix}_compounds_unmapped.json"
@@ -677,14 +691,21 @@ def main():
                                                                    args.load_prev, args.out_prefix,
                                                                    args.use_cirpy, args.cirpy_log, 
                                                                    args.opsin_loc) 
+    logging.info("Done resolving all compounds to smiles")
+
+
     # Standardize all smiles mappings!
     # Load from file if it exists
     if not args.no_standardize:
+        logging.info("Starting standardizer")
         mapped_standardized_file = f"{args.out_prefix}_compounds_to_standardized_smiles.json"
         mapped_compounds = standardize_smiles(mapped_standardized_file, mapped_compounds,
                                               args.standardizer_log, args.load_prev, 
                                               args.multiprocess_num)
+        logging.info("Done with standardizer")
 
+
+    logging.info("Beginning to export all files")
     # Reverse the mapping for reference later 
     smiles_to_names_file = f"{args.out_prefix}_smiles_to_comp_names.json"
     smiles_to_names = reverse_mapping(mapped_compounds, 
