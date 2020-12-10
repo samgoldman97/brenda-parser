@@ -5,6 +5,10 @@ A repository designated to parsing entries from the BRENDA database
 
 Conda requirements to run this parse can be found in environment.yml
 
+## Outputs
+
+This script was run as intended to parse BRENDA and standardized (see sample call below). Both the data and resulting outputs can be found at this [link](https://www.dropbox.com/sh/uh9oqbzauto7o1b/AADYWLlpqFyPtavphAwsT2Nsa?dl=0). 
+
 ## Downloads reqired:
 
 This program relies on two different files being downloaded. 
@@ -13,9 +17,21 @@ This program relies on two different files being downloaded.
 
 - Second, many of the names in BRENDA are difficult to parse. To help guide this, some of the ligands in BRENDA are associated with inchi values. This list can be downloaded by placing a blank query [here](https://www.brenda-enzymes.org/search_result.php?a=13). This can be saved and passed in to the `--brend-ligands` argument.
 
-## Command to run: 
+## Command to run for parsing: 
 
 `python parse_brenda.py --brenda-flat-file data/raw/brenda_download.txt --brenda-ligands data/raw/brenda_ligands.csv --out-prefix results/out --no-standardize --load-prev --opsin-loc external_tools/opsin.jar`
+
+## Analysis
+
+After parsing the file, the output, `[out_name]_rxn_final.tsv` can be parsed for statistical analysis or downstream processing. Specifically, for this application, the script `analyze_num_rxns.py` provides a simple way to work with this:
+
+- The function `preprocess` removes any entry that has Unknown entries in either its reactants or products 
+
+- After this, all duplicate reactions for each EC number are removed, arbitrarily choosing to include any one of the data entries that has the duplicate reaction.
+
+Sample way to run this script: 
+
+`python analyze_num_rxns --parsed-data results/out_rxn_final.tsv`
 
 
 ## Pipeline
@@ -33,10 +49,14 @@ This program relies on two different files being downloaded.
 
 Note: The program attempts to cache intermediates along the way and running with the same prefix and `--load-prev` arg will ensure that these steps are not repeated. 
 
+## References
+
+This package relies on the use of Opsin developed by Lowe et al., and their Java implementation is included in the folder "External tools". 
+
+Lowe, Daniel M., et al. "Chemical name to structure: OPSIN, an open source solution." (2011): 739-753.
+
 
 ## TODO: 
 
-- Add Esther's script and additional post processing to this script
-- Delete the file `src/extract_gene_subs.py`, which is from an older version of this and only included as reference for ideas to post process
-- Add this description to Esther's overleaf doc.
-- Add parsed result files and inputs to dropbox for download and share with Esther
+- Add functionality for gene resolution from other repo
+- Add export of kinetic reactions as well from other repo

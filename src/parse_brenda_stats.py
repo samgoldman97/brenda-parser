@@ -1,5 +1,13 @@
 """Module to hold statistics functions for post processing of parsed data
 
+
+This file is from an older version of this repository and is not currently
+cleaned
+
+TODO: 
+- Update this file
+
+
 """
 
 import pandas as pd
