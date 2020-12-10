@@ -1,4 +1,4 @@
-# brenda_parse
+# brenda-parser
 A repository designated to parsing entries from the BRENDA database
 
 ## Installation
