@@ -1,4 +1,4 @@
-# brenda_parse
+# brenda-parser
 A repository designated to parsing entries from the BRENDA database
 
 ## Installation
@@ -37,14 +37,23 @@ Sample way to run this script:
 ## Pipeline
 
 - EC classes and reactions are parsed from the flat file
+
 - All ligands in the `brenda_ligands` supplement are extracted and included as alterantives.
+
 - We try to resolve all brenda common names of substrates to smiles: 
-        - As in `src/parse_brenda_compounds.csv` there are a number of resolvers and a number of name change edits. The name change edits are intended to change the query to something close that may be syntactically understood by the parser, like removing a haifen and replacing with whitespace. 
-        - All resolvers are tried with all combinations of name substitutions. The name resolvers are: 
-                - Using the provided inchi or chebi mapping from the `brenda_ligands` input
-                - Pubchem bulk query api 
-                - Opsin chemical parser
+
+    - As in `src/parse_brenda_compounds.csv` there are a number of resolvers and a number of name change edits. The name change edits are intended to change the query to something close that may be syntactically understood by the parser, like removing a haifen and replacing with whitespace. 
+        
+    - All resolvers are tried with all combinations of name substitutions. The name resolvers are: 
+        
+    - Using the provided inchi or chebi mapping from the `brenda_ligands` input
+                
+    - Pubchem bulk query api 
+                
+    - Opsin chemical parser
+                
 - After name resolution, we have an optional step to use MolVS to try to standardize compounds. This is time consuming and can be parallelized for efficiency. 
+
 - The reaction (and compound) file is exported. 
 
 Note: The program attempts to cache intermediates along the way and running with the same prefix and `--load-prev` arg will ensure that these steps are not repeated. 
